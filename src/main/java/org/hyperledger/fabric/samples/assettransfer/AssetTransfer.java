@@ -7,6 +7,7 @@ package org.hyperledger.fabric.samples.assettransfer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.owlike.genson.Genson;
 
 import org.hyperledger.fabric.contract.Context;
 import org.hyperledger.fabric.contract.ContractInterface;
@@ -20,8 +21,6 @@ import org.hyperledger.fabric.shim.ChaincodeException;
 import org.hyperledger.fabric.shim.ChaincodeStub;
 import org.hyperledger.fabric.shim.ledger.KeyValue;
 import org.hyperledger.fabric.shim.ledger.QueryResultsIterator;
-
-import com.owlike.genson.Genson;
 
 @Contract(
         name = "basic",
@@ -236,4 +235,36 @@ public final class AssetTransfer implements ContractInterface {
 
         return response;
     }
+
+    /**
+     * Duplicate the asset and assign the duplicate to the new owner.
+     *
+     * @param ctx the transaction context
+     * @param assetID the ID of the asset being transferred
+     * @param newOwner the new owner
+     * @return duplicateAsset the duplicate to the new owner
+     */
+    @Transaction(intent = Transaction.TYPE.SUBMIT)
+    public Asset DuplicateAsset(final Context ctx, final String assetID, final String newOwner) {
+        ChaincodeStub stub = ctx.getStub();
+        String assetJSON = stub.getStringState(assetID);
+
+        if (assetJSON == null || assetJSON.isEmpty()) {
+            String errorMessage = String.format("Asset %s does not exist", assetID);
+            System.out.println(errorMessage);
+            throw new ChaincodeException(errorMessage, AssetTransferErrors.ASSET_NOT_FOUND.toString());
+        }
+
+        Asset asset = genson.deserialize(assetJSON, Asset.class);
+
+        String duplicateAssetId = asset.getAssetID() + "_duplicate";
+
+        Asset duplicateAsset = new Asset(duplicateAssetId, asset.getColor(), asset.getSize(), newOwner, asset.getAppraisedValue());
+        //Use a Genson to conver the Asset into string, sort it alphabetically and serialize it into a json string
+        String sortedJson = genson.serialize(duplicateAsset);
+        stub.putStringState(assetID, sortedJson);
+
+        return duplicateAsset;
+    }
+
 }
